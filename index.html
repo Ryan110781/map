@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Leaflet 地圖搜尋 + 導航 Demo</title>
+  <meta charset="utf-8" />
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <!-- Geocoder CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+  <!-- Routing Machine CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css" />
+
+  <style>
+    #map {
+      height: 90vh;
+      width: 100%;
+    }
+    /* 定位按鈕樣式 */
+    .locate-button {
+      background: white;
+      border: 2px solid #666;
+      border-radius: 4px;
+      cursor: pointer;
+      padding: 6px 8px;
+      margin: 2px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+    }
+    .locate-button:hover {
+      background: #f0f0f0;
+    }
+  </style>
+</head>
+<body>
+  <h3>自己渲染的地圖 + 地址搜尋 + 導航（自動起點 + 點終點）</h3>
+  <div id="map"></div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- Geocoder JS -->
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+  <!-- Routing Machine JS -->
+  <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+
+  <script>
+    let map;
+    let marker;
+    let routeControl;
+    let startPoint = null;
+    let endPoint = null;
+
+    // 初始化地圖
+    function initMap(lat, lon) {
+      map = L.map('map').setView([lat, lon], 15);
+
+      // OSM 圖磚
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+
+      // 預設標記（自動當作導航起點）
+      startPoint = L.latLng(lat, lon);
+      marker = L.marker(startPoint).addTo(map)
+        .bindPopup("目前位置（起點）")
+        .openPopup();
+
+      // 搜尋控制
+      L.Control.geocoder({ defaultMarkGeocode: false })
+      .on('markgeocode', function(e) {
+        const latlng = e.geocode.center;
+        map.setView(latlng, 16);
+
+        if (marker) map.removeLayer(marker);
+        marker = L.marker(latlng).addTo(map)
+          .bindPopup(e.geocode.name)
+          .openPopup();
+      })
+      .addTo(map);
+
+      // 📍單次定位按鈕
+      const locateControl = L.control({position: 'topleft'});
+      locateControl.onAdd = function() {
+        const button = L.DomUtil.create('button', 'locate-button');
+        button.innerHTML = "📍";
+        button.title = "回到目前位置";
+        button.onclick = () => locateUser();
+        return button;
+      };
+      locateControl.addTo(map);
+
+      // 🛣️ 點地圖設定終點並導航
+      map.on('click', function(e) {
+        if (!endPoint) {
+          endPoint = e.latlng;
+          L.marker(endPoint).addTo(map).bindPopup("終點").openPopup();
+          
+          // 畫路線
+          routeControl = L.Routing.control({
+            waypoints: [startPoint, endPoint],
+            routeWhileDragging: true,
+            showAlternatives: true
+          }).addTo(map);
+        } else {
+          // 重置終點與路線
+          if (routeControl) map.removeControl(routeControl);
+          map.eachLayer((layer) => {
+            if (layer instanceof L.Marker && layer != marker) map.removeLayer(layer);
+          });
+          endPoint = e.latlng;
+          L.marker(endPoint).addTo(map).bindPopup("終點").openPopup();
+
+          // 重新畫路線
+          routeControl = L.Routing.control({
+            waypoints: [startPoint, endPoint],
+            routeWhileDragging: true,
+            showAlternatives: true
+          }).addTo(map);
+        }
+      });
+    }
+
+    // 📍單次定位
+    function locateUser() {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lon = pos.coords.longitude;
+            map.setView([lat, lon], 16);
+
+            if (marker) map.removeLayer(marker);
+            startPoint = L.latLng(lat, lon);
+            marker = L.marker(startPoint).addTo(map)
+              .bindPopup("目前位置（起點）")
+              .openPopup();
+          },
+          () => alert("無法取得目前位置！")
+        );
+      } else alert("你的瀏覽器不支援定位功能");
+    }
+
+    // 初始化地圖
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => initMap(pos.coords.latitude, pos.coords.longitude),
+        () => initMap(25.0330, 121.5654) // 台北 101
+      );
+    } else {
+      initMap(25.0330, 121.5654);
+    }
+  </script>
+</body>
+</html>
