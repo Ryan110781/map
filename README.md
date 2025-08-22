@@ -1,6 +1,6 @@
 # 線上地圖網站
 
-⭐ 使用  技術
+⭐ 使用 **https://www.openstreetmap.org/** 技術
 
 
 
